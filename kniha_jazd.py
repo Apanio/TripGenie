@@ -36,24 +36,20 @@ def init_db():
                  id INTEGER PRIMARY KEY AUTOINCREMENT,
                  spz TEXT, znacka TEXT, typ TEXT, druh TEXT,
                  phl TEXT, vin TEXT, vodic TEXT, norm_spotreba REAL, tacho REAL)''')
-    # Migrácia: Bezpečné pridanie nových stĺpcov, ak existuje stará databáza
     try: c.execute("ALTER TABLE vozidla ADD COLUMN objem_nadrze REAL DEFAULT 50.0")
     except: pass
     try: c.execute("ALTER TABLE vozidla ADD COLUMN stav_nadrze REAL DEFAULT 0.0")
     except: pass
-    
-    conn.commit()
-    conn.close()
+    conn.commit(); conn.close()
 
 class KnihaJazdApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Kniha Jázd PRO 12.0 - Complete Edition")
+        self.root.title("Kniha Jázd PRO 16.0 - Strict City & Fuel Edition")
         self.root.geometry("1300x850")
         self.cache_gps = VELKA_DATABAZA.copy()
         
         init_db()
-        
         self.notebook = ttk.Notebook(self.root)
         self.tab_generator = tk.Frame(self.notebook)
         self.tab_garaz = tk.Frame(self.notebook)
@@ -75,7 +71,6 @@ class KnihaJazdApp:
             "Vodič:", "Norm. spotreba (l):", "Tachometer (Štart):", "Objem nádrže (l):", "Stav v nádrži (l):"
         ]
         self.garaz_entries = {}
-        
         for i, lbl in enumerate(self.garaz_labels):
             tk.Label(form, text=lbl).grid(row=i//4, column=(i%4)*2, sticky="e", padx=5, pady=5)
             ent = tk.Entry(form, width=18)
@@ -92,70 +87,50 @@ class KnihaJazdApp:
         for c, h, w in zip(self.tree_auta['columns'], ["ID", "ŠPZ", "Vozidlo", "Vodič", "Tachometer", "Nádrž (l)"], [30, 100, 250, 150, 100, 100]):
             self.tree_auta.heading(c, text=h); self.tree_auta.column(c, width=w)
         self.tree_auta.pack(fill="both", expand=True, padx=10, pady=10)
-        
-        # Udalosť: Kliknutie na riadok načíta údaje do formulára
         self.tree_auta.bind("<<TreeviewSelect>>", self.nacitaj_do_formulara)
 
     def ziskaj_hodnoty_z_formulara(self):
         hodnoty = [self.garaz_entries[lbl].get().strip() for lbl in self.garaz_labels]
-        if not hodnoty[0]: 
-            messagebox.showerror("Chyba", "ŠPZ je povinná!")
-            return None
+        if not hodnoty[0]: return messagebox.showerror("Chyba", "ŠPZ je povinná!")
         try:
-            spotreba = float(hodnoty[7].replace(',', '.')) if hodnoty[7] else 0.0
-            tacho = float(hodnoty[8].replace(',', '.')) if hodnoty[8] else 0.0
-            objem = float(hodnoty[9].replace(',', '.')) if hodnoty[9] else 50.0
-            stav = float(hodnoty[10].replace(',', '.')) if hodnoty[10] else 0.0
-            return (*hodnoty[:7], spotreba, tacho, objem, stav)
-        except: 
-            messagebox.showerror("Chyba", "Spotreba, Tachometer a Nádrž musia byť čísla.")
-            return None
+            return (*hodnoty[:7], float(hodnoty[7].replace(',','.') or 0), float(hodnoty[8].replace(',','.') or 0), float(hodnoty[9].replace(',','.') or 50), float(hodnoty[10].replace(',','.') or 0))
+        except: return messagebox.showerror("Chyba", "Polia musia obsahovať čísla.")
 
     def pridat_vozidlo(self):
         data = self.ziskaj_hodnoty_z_formulara()
         if not data: return
         conn = sqlite3.connect("kniha_jazd.db"); c = conn.cursor()
         c.execute("INSERT INTO vozidla (spz, znacka, typ, druh, phl, vin, vodic, norm_spotreba, tacho, objem_nadrze, stav_nadrze) VALUES (?,?,?,?,?,?,?,?,?,?,?)", data)
-        conn.commit(); conn.close()
-        self.vycisti_formular(); self.nacitaj_vozidla()
-        messagebox.showinfo("Úspech", "Nové vozidlo pridané.")
+        conn.commit(); conn.close(); self.vycisti_formular(); self.nacitaj_vozidla()
 
     def upravit_vozidlo(self):
         vybrane = self.tree_auta.selection()
-        if not vybrane: return messagebox.showwarning("Upozornenie", "Najprv kliknite na vozidlo v tabuľke, ktoré chcete upraviť.")
+        if not vybrane: return messagebox.showwarning("Upozornenie", "Kliknite na vozidlo v tabuľke.")
         v_id = self.tree_auta.item(vybrane[0])['values'][0]
         data = self.ziskaj_hodnoty_z_formulara()
         if not data: return
-        
         conn = sqlite3.connect("kniha_jazd.db"); c = conn.cursor()
         c.execute('''UPDATE vozidla SET spz=?, znacka=?, typ=?, druh=?, phl=?, vin=?, vodic=?, 
                      norm_spotreba=?, tacho=?, objem_nadrze=?, stav_nadrze=? WHERE id=?''', (*data, v_id))
-        conn.commit(); conn.close()
-        self.vycisti_formular(); self.nacitaj_vozidla()
-        messagebox.showinfo("Úspech", "Údaje vozidla boli zmenené.")
+        conn.commit(); conn.close(); self.vycisti_formular(); self.nacitaj_vozidla()
 
     def vymazat_vozidlo(self):
         vybrane = self.tree_auta.selection()
         if not vybrane: return
         v_id = self.tree_auta.item(vybrane[0])['values'][0]
         conn = sqlite3.connect("kniha_jazd.db"); c = conn.cursor()
-        c.execute("DELETE FROM vozidla WHERE id=?", (v_id,)); conn.commit(); conn.close()
-        self.vycisti_formular(); self.nacitaj_vozidla()
+        c.execute("DELETE FROM vozidla WHERE id=?", (v_id,)); conn.commit(); conn.close(); self.vycisti_formular(); self.nacitaj_vozidla()
 
     def nacitaj_do_formulara(self, event):
         vybrane = self.tree_auta.selection()
         if not vybrane: return
         v_id = self.tree_auta.item(vybrane[0])['values'][0]
-        
         conn = sqlite3.connect("kniha_jazd.db"); c = conn.cursor()
         c.execute("SELECT spz, znacka, typ, druh, phl, vin, vodic, norm_spotreba, tacho, objem_nadrze, stav_nadrze FROM vozidla WHERE id=?", (v_id,))
-        row = c.fetchone()
-        conn.close()
-        
+        row = c.fetchone(); conn.close()
         if row:
             for i, lbl in enumerate(self.garaz_labels):
-                self.garaz_entries[lbl].delete(0, tk.END)
-                self.garaz_entries[lbl].insert(0, str(row[i]))
+                self.garaz_entries[lbl].delete(0, tk.END); self.garaz_entries[lbl].insert(0, str(row[i]))
 
     def vycisti_formular(self):
         for ent in self.garaz_entries.values(): ent.delete(0, tk.END)
@@ -165,7 +140,6 @@ class KnihaJazdApp:
         conn = sqlite3.connect("kniha_jazd.db"); c = conn.cursor()
         c.execute("SELECT id, spz, znacka, typ, druh, phl, vin, vodic, norm_spotreba, tacho, objem_nadrze, stav_nadrze FROM vozidla")
         auta = c.fetchall(); conn.close()
-        
         zoznam_spz = []
         self.auta_data = {}
         for a in auta:
@@ -177,7 +151,6 @@ class KnihaJazdApp:
                 "vin": a[6], "vodic": a[7], "spotreba": a[8], "tacho": a[9], 
                 "objem_nadrze": a[10], "stav_nadrze": a[11]
             }
-            
         self.cb_vozidlo['values'] = zoznam_spz
         if zoznam_spz: self.cb_vozidlo.current(0); self.on_vozidlo_zmena(None)
 
@@ -263,7 +236,7 @@ class KnihaJazdApp:
         self.tree.insert("", tk.END, values=hodnoty)
 
     def spustit_vlakno(self):
-        if not self.cb_vozidlo.get(): return messagebox.showerror("Chyba", "Najprv pridajte a vyberte vozidlo v Garáži.")
+        if not self.cb_vozidlo.get(): return messagebox.showerror("Chyba", "Vyberte vozidlo z Garáže.")
         try:
             d_od = datetime.datetime.strptime(self.ent_od.get(), "%d.%m.%Y").date()
             d_do = datetime.datetime.strptime(self.ent_do.get(), "%d.%m.%Y").date()
@@ -273,19 +246,27 @@ class KnihaJazdApp:
             tacho = float(self.ent_tacho.get().replace(',', '.'))
             nadrz_start = float(self.ent_nadrz.get().replace(',', '.'))
             
-            t_datum = self.ent_tank_datum.get().strip()
-            t_litre = self.ent_tank_litre.get().strip().replace(',', '.')
+            # Bezpečné spracovanie dátumu tankovania
+            t_datum_str = self.ent_tank_datum.get().strip()
+            t_datum = None
+            if t_datum_str:
+                parts = t_datum_str.split('.')
+                t_datum = datetime.date(int(parts[2]), int(parts[1]), int(parts[0]))
+                
+            t_litre_str = self.ent_tank_litre.get().strip().replace(',', '.')
+            t_litre = float(t_litre_str) if t_litre_str else 0.0
             t_cena = self.ent_tank_cena.get().strip().replace(',', '.')
-        except: return messagebox.showerror("Chyba", "Chybný formát dátumu alebo čísla.")
+            
+        except Exception as e: return messagebox.showerror("Chyba", "Chybný formát dátumu (DD.MM.YYYY) alebo čísla pri tankovaní.")
 
         for i in self.tree.get_children(): self.tree.delete(i)
         self.btn_gen.config(text="Beží...", state="disabled")
         auto_data = self.auta_data[self.cb_vozidlo.get()]
-        auto_data["stav_nadrze"] = nadrz_start # Ak si to užívateľ ručne prepísal v GUI
+        auto_data["stav_nadrze"] = nadrz_start
         
         threading.Thread(target=self.vypocet_na_pozadi, args=(d_od, d_do, dt, tacho, self.ent_start.get().strip(), self.ent_koniec.get().strip(), auto_data, t_datum, t_litre, t_cena), daemon=True).start()
 
-    # --- JADRO S MATEMATIKOU NÁDRŽE ---
+    # --- JADRO ---
     def vypocet_na_pozadi(self, d_od, d_do, denny_target, tacho, start_m, koniec_m, auto_data, t_datum, t_litre, t_cena):
         if not self.get_coords(start_m) or not self.get_coords(koniec_m):
             self.root.after(0, lambda: messagebox.showerror("Chyba", "Mesto sa nenašlo.")); self.root.after(0, lambda: self.btn_gen.config(text="GENEROVAŤ", state="normal")); return
@@ -298,23 +279,20 @@ class KnihaJazdApp:
         max_nadrz = auto_data["objem_nadrze"]
         tankovane_uz = False 
 
-        # Sub-funkcia ktorá rieši matematiku tankovania pre každý riadok
         def zostav_riadok(datum_str, cas_str, trasa, km, start_t, ciel_t, spotr):
             nonlocal tankovane_uz, akt_nadrz
             c_litre = ""; c_eur = ""
             
-            # Pripočítanie tankovania (ak sedí dátum)
-            if t_datum and t_litre and not tankovane_uz and datum_str == t_datum:
-                c_litre = t_litre
+            # Tankovanie porovnáva priamo objekty "date", čo je 100% nepriestrelné voči preklepom vo formáte
+            if t_datum and t_litre > 0 and not tankovane_uz and curr_d == t_datum:
+                c_litre = f"{t_litre:.2f}"
                 c_eur = t_cena
-                akt_nadrz += float(t_litre)
-                if akt_nadrz > max_nadrz: akt_nadrz = max_nadrz # Nesmie pretiecť objem
+                akt_nadrz += t_litre
+                if akt_nadrz > max_nadrz: akt_nadrz = max_nadrz 
                 tankovane_uz = True
             
-            # Odpočítanie spotreby
             akt_nadrz -= float(spotr)
             if akt_nadrz < 0: akt_nadrz = 0
-            
             return (datum_str, cas_str, trasa, f"{km:.1f}", f"{start_t:.1f}", f"{ciel_t:.1f}", f"{spotr:.2f}", c_litre, c_eur, f"{akt_nadrz:.2f}")
 
         while curr_d <= d_do:
@@ -323,80 +301,95 @@ class KnihaJazdApp:
             curr_time = datetime.datetime.combine(curr_d, datetime.time(8, 0))
             j_cislo = 0; den_str = curr_d.strftime("%d.%m.%Y")
             
-            while j_cislo < 8 and zostatok_km > 2:
+            while zostatok_km > 0.1:
                 d_home, t_home = self.get_route(curr_m, koniec_m)
                 if d_home is None: d_home = 0
                 
-                if curr_m == koniec_m and zostatok_km <= 5:
+                # POISTKA 1: Prekročenie max počtu jázd - ihneď ukončiť deň
+                if j_cislo >= 6:
+                    jazda_dist = zostatok_km
+                    label = f"{curr_m} -> {koniec_m}" if curr_m != koniec_m else f"{curr_m} -> {curr_m}"
+                    t_dur = int((jazda_dist/50)*60) or 5
+                    spotr = (jazda_dist / 100) * zvysena_spotreba
                     odchod = curr_time.strftime("%H:%M")
-                    curr_time += datetime.timedelta(minutes=int((zostatok_km/60)*60) if zostatok_km>0 else 1)
-                    spotr = (zostatok_km / 100) * zvysena_spotreba
-                    h = zostav_riadok(den_str, f"{odchod}-{curr_time.strftime('%H:%M')}", "Lokálne jazdy", zostatok_km, tacho, tacho+zostatok_km, spotr)
-                    self.root.after(0, self.aktualizuj_ui_tabulku, h); tacho += zostatok_km; break 
-                        
-                if curr_m != koniec_m and (zostatok_km - d_home <= 15 or j_cislo >= 7):
-                    if d_home > 0:
-                        odchod = curr_time.strftime("%H:%M")
-                        curr_time += datetime.timedelta(minutes=int(t_home))
-                        spotr = (d_home / 100) * zvysena_spotreba
-                        h = zostav_riadok(den_str, f"{odchod}-{curr_time.strftime('%H:%M')}", f"{curr_m} -> {koniec_m}", d_home, tacho, tacho+d_home, spotr)
-                        self.root.after(0, self.aktualizuj_ui_tabulku, h)
-                        tacho += d_home; zostatok_km -= d_home; curr_m = koniec_m
-                        curr_time += datetime.timedelta(minutes=random.randint(15, 60))
+                    curr_time += datetime.timedelta(minutes=t_dur)
+                    prichod = curr_time.strftime("%H:%M")
+                    
+                    h = zostav_riadok(den_str, f"{odchod}-{prichod}", label, jazda_dist, tacho, tacho+jazda_dist, spotr)
+                    self.root.after(0, self.aktualizuj_ui_tabulku, h)
+                    tacho += jazda_dist; zostatok_km = 0; break
+
+                # POISTKA 2: Sme v cieli a zostáva menej ako 30 km (Lokálna jazda priamo v meste)
+                if curr_m == koniec_m and zostatok_km <= 30:
+                    jazda_dist = zostatok_km
+                    t_dur = int((jazda_dist/50)*60) or 5
+                    spotr = (jazda_dist / 100) * zvysena_spotreba
+                    odchod = curr_time.strftime("%H:%M")
+                    curr_time += datetime.timedelta(minutes=t_dur)
+                    prichod = curr_time.strftime("%H:%M")
+                    
+                    h = zostav_riadok(den_str, f"{odchod}-{prichod}", f"{curr_m} -> {curr_m}", jazda_dist, tacho, tacho+jazda_dist, spotr)
+                    self.root.after(0, self.aktualizuj_ui_tabulku, h)
+                    tacho += jazda_dist; zostatok_km = 0; break
+
+                # POISTKA 3: Sme vonku a návrat domov spotrebuje takmer celý (alebo celý) zostatok
+                if curr_m != koniec_m and zostatok_km <= d_home + 5:
+                    jazda_dist = min(d_home, zostatok_km)
+                    t_dur = int(t_home or (jazda_dist/50)*60) or 10
+                    spotr = (jazda_dist / 100) * zvysena_spotreba
+                    odchod = curr_time.strftime("%H:%M")
+                    curr_time += datetime.timedelta(minutes=t_dur)
+                    prichod = curr_time.strftime("%H:%M")
+                    
+                    h = zostav_riadok(den_str, f"{odchod}-{prichod}", f"{curr_m} -> {koniec_m}", jazda_dist, tacho, tacho+jazda_dist, spotr)
+                    self.root.after(0, self.aktualizuj_ui_tabulku, h)
+                    tacho += jazda_dist; zostatok_km -= jazda_dist; curr_m = koniec_m
+                    curr_time += datetime.timedelta(minutes=random.randint(15, 30))
                     j_cislo += 1; continue
-                
+
+                # POISTKA 4: Hľadáme medzizastávku
                 kand = []
                 lc, tc = self.cache_gps[curr_m]; le, te = self.cache_gps[koniec_m]
                 for c in m_pool:
-                    if c == curr_m or (c == koniec_m and zostatok_km > 25): continue 
+                    if c in (curr_m, koniec_m): continue 
                     lx, tx = self.cache_gps[c]
                     odh = (vzdusna_vzdialenost(lc,tc,lx,tx) + vzdusna_vzdialenost(lx,tx,le,te)) * 1.3
-                    if odh <= zostatok_km + 20: kand.append((c, odh))
-                
-                kand.sort(key=lambda x: abs((zostatok_km * 0.7) - x[1]))
-                best_c = None; best_d = 0; best_t = 0
-                
-                for c, _ in kand[:8]:
-                    d_t, t_t = self.get_route(curr_m, c); d_b, _ = self.get_route(c, koniec_m)
-                    if d_t and d_b and (d_t + d_b <= zostatok_km + 10):
-                        best_c = c; best_d = d_t; best_t = t_t; break 
-                
-                if not best_c and zostatok_km > 25:
-                    for c, _ in sorted(kand, key=lambda x: x[1])[:5]:
-                        d_t, t_t = self.get_route(curr_m, c); d_b, _ = self.get_route(c, koniec_m)
-                        if d_t and d_b and (d_t + d_b <= zostatok_km + 30):
-                            best_c = c; best_d = d_t; best_t = t_t; break
-                
-                if best_c:
-                    odchod = curr_time.strftime("%H:%M")
-                    curr_time += datetime.timedelta(minutes=int(best_t))
-                    spotr = (best_d / 100) * zvysena_spotreba
-                    h = zostav_riadok(den_str, f"{odchod}-{curr_time.strftime('%H:%M')}", f"{curr_m} -> {best_c}", best_d, tacho, tacho+best_d, spotr)
-                    self.root.after(0, self.aktualizuj_ui_tabulku, h)
-                    tacho += best_d; zostatok_km -= best_d; curr_m = best_c
-                    curr_time += datetime.timedelta(minutes=random.randint(15, 60))
-                else:
-                    if curr_m != koniec_m:
-                        odchod = curr_time.strftime("%H:%M")
-                        curr_time += datetime.timedelta(minutes=int(t_home))
-                        spotr = (d_home / 100) * zvysena_spotreba
-                        h = zostav_riadok(den_str, f"{odchod}-{curr_time.strftime('%H:%M')}", f"{curr_m} -> {koniec_m}", d_home, tacho, tacho+d_home, spotr)
-                        self.root.after(0, self.aktualizuj_ui_tabulku, h)
-                        tacho += d_home; zostatok_km -= d_home; curr_m = koniec_m
-                        curr_time += datetime.timedelta(minutes=random.randint(15, 60))
+                    if odh <= zostatok_km: kand.append((c, odh))
+                    
+                kand.sort(key=lambda x: x[1], reverse=True)
+                best_c, best_d, best_t = None, 0, 0
+                for c, _ in kand[:6]:
+                    d_t, t_t = self.get_route(curr_m, c)
+                    d_b, _ = self.get_route(c, koniec_m)
+                    if d_t and d_b and (d_t + d_b <= zostatok_km):
+                        best_c, best_d, best_t = c, d_t, t_t; break 
+                        
+                # POISTKA 5: Ak žiadne veľké mesto nepasuje, zostaneme jazdiť v aktuálnom meste
+                if not best_c:
+                    best_c = curr_m
+                    if curr_m == koniec_m:
+                        best_d = max(1.0, zostatok_km)
                     else:
-                        if zostatok_km > 0:
-                            odchod = curr_time.strftime("%H:%M")
-                            curr_time += datetime.timedelta(minutes=int((zostatok_km/60)*60) if zostatok_km>0 else 5)
-                            spotr = (zostatok_km / 100) * zvysena_spotreba
-                            h = zostav_riadok(den_str, f"{odchod}-{curr_time.strftime('%H:%M')}", curr_m + " -> Jazdy po okolí", zostatok_km, tacho, tacho+zostatok_km, spotr)
-                            self.root.after(0, self.aktualizuj_ui_tabulku, h)
-                            tacho += zostatok_km; zostatok_km = 0
-                        break
+                        best_d = max(1.0, (zostatok_km - d_home) / 2)
+                    best_t = (best_d / 40) * 60
+                    
+                jazda_dist = best_d
+                t_dur = int(best_t or 10)
+                spotr = (jazda_dist / 100) * zvysena_spotreba
+                odchod = curr_time.strftime("%H:%M")
+                curr_time += datetime.timedelta(minutes=t_dur)
+                prichod = curr_time.strftime("%H:%M")
+                
+                h = zostav_riadok(den_str, f"{odchod}-{prichod}", f"{curr_m} -> {best_c}", jazda_dist, tacho, tacho+jazda_dist, spotr)
+                self.root.after(0, self.aktualizuj_ui_tabulku, h)
+                
+                tacho += jazda_dist; zostatok_km -= jazda_dist; curr_m = best_c
+                curr_time += datetime.timedelta(minutes=random.randint(15, 45))
                 j_cislo += 1
+                
             curr_d += datetime.timedelta(days=1)
             
-        # Aktualizácia tachometra a nádrže v databáze po dokončení !
+        # Aktualizácia tachometra a nádrže
         conn = sqlite3.connect("kniha_jazd.db"); c = conn.cursor()
         c.execute("UPDATE vozidla SET tacho=?, stav_nadrze=? WHERE id=?", (tacho, akt_nadrz, auto_data["id"]))
         conn.commit(); conn.close()
@@ -416,29 +409,18 @@ class KnihaJazdApp:
         try:
             with open(path, mode='w', encoding='utf-8-sig', newline='') as f:
                 w = csv.writer(f, delimiter=';')
-                
                 w.writerow(["Vozidlo:", auto['znacka'], "", "Druh:", auto['druh'], "Normovaná spotreba:", f"{auto['spotreba']}"])
                 w.writerow(["Typ:", auto['typ'], "", "VIN Číslo:", auto['vin'], "Zvýšená spotreba:", f"{zvysena_spotreba:.2f}"])
                 w.writerow(["PHL:", auto['phl'], "", "", "", "", ""])
                 w.writerow([])
-                
                 w.writerow(["P.č.", "Dátum", "Čas", "Trasa", "Vodič", "Účel", "Km", "Tachometer", "Čerpané", "EUR/l", "Spotreba", "Zostatok v nádrži"])
                 
                 for index, row_id in enumerate(self.tree.get_children()):
                     val = self.tree.item(row_id)["values"]
                     w.writerow([
                         index + 1,        
-                        val[0],           # Dátum
-                        val[1],           # Čas
-                        val[2],           # Trasa
-                        auto['vodic'],    # Vodič
-                        "Služobná cesta", # Účel
-                        val[3],           # Km
-                        val[5],           # Tachometer (Cieľ)
-                        val[7],           # Čerpané (Litre)
-                        val[8],           # EUR/l
-                        val[6],           # Spotreba
-                        val[9]            # Zostatok v nádrži (Už sa reálne vypisuje)
+                        val[0], val[1], val[2], auto['vodic'], "Služobná cesta", 
+                        val[3], val[5], val[7], val[8], val[6], val[9] 
                     ])
             messagebox.showinfo("Úspech", "Kniha jázd bola uložená.")
         except Exception as e: messagebox.showerror("Chyba", f"Nepodarilo sa uložiť.\n{e}")
