@@ -1,3 +1,35 @@
+import sys
+import os
+
+# ==========================================
+# MAC OS FIX 1: Oprava systémových ciest
+# Pri štarte z Docku macOS vymaže systémové cesty. CustomTkinter ich ale potrebuje,
+# aby zistil, či máš Dark Mode alebo Light Mode.
+# ==========================================
+if "PATH" not in os.environ:
+    os.environ["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin"
+elif "/usr/bin" not in os.environ["PATH"]:
+    os.environ["PATH"] += ":/usr/bin:/bin:/usr/sbin:/sbin"
+
+# ==========================================
+# MAC OS FIX 2: Vytvorenie pracovnej zložky
+# ==========================================
+APP_DIR = os.path.join(os.path.expanduser("~"), ".tripgenie")
+if not os.path.exists(APP_DIR):
+    os.makedirs(APP_DIR)
+
+# ==========================================
+# MAC OS FIX 3: "Čierna skrinka" (Záznamník chýb)
+# Ak apka spadne, chyba sa zapíše do textového súboru crash_log.txt
+# ==========================================
+if sys.platform == "darwin":
+    log_file = os.path.join(APP_DIR, "crash_log.txt")
+    # Zapíšeme výstup aj chyby do súboru
+    sys.stdout = open(log_file, "a")
+    sys.stderr = open(log_file, "a")
+
+DB_CESTA = os.path.join(APP_DIR, "kniha_jazd.db")
+
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import customtkinter as ctk
@@ -8,11 +40,11 @@ import datetime
 import csv
 import math
 import threading
-import webbrowser  # Knižnica pre otváranie webových odkazov
+import webbrowser
 
 # --- NASTAVENIE TÉMY ---
-ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
-ctk.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
+ctk.set_appearance_mode("System")
+ctk.set_default_color_theme("blue")
 
 # --- DATABÁZA MIEST ---
 VELKA_DATABAZA = {
@@ -36,7 +68,7 @@ def vzdusna_vzdialenost(lon1, lat1, lon2, lat2):
 
 # --- DATABÁZA ---
 def init_db():
-    conn = sqlite3.connect("kniha_jazd.db")
+    conn = sqlite3.connect(DB_CESTA)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS vozidla (
                  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,16 +105,22 @@ class KnihaJazdApp(ctk.CTk):
         self.nacitaj_vozidla()
         self.zobraz_frame("generator")
 
-        # --- KLIKATEĽNÝ ODKAZ APANIO V PRAVOM DOLNOM ROHU ---
         self.link_apanio = ctk.CTkLabel(
             self, 
             text="Apanio", 
             font=ctk.CTkFont(underline=True, weight="bold"), 
-            text_color=("#1a73e8", "#5b9dd9"), # Farba prispôsobená pre svetlý/tmavý režim
+            text_color=("#1a73e8", "#5b9dd9"),
             cursor="hand2"
         )
-        self.link_apanio.place(relx=0.99, rely=0.99, anchor="se", x=-10, y=- -5)
+        self.link_apanio.place(relx=0.99, rely=0.99, anchor="se", x=-10, y=-10)
         self.link_apanio.bind("<Button-1>", lambda e: webbrowser.open("https://github.com/Apanio?tab=repositories&q=&type=public&language=&sort="))
+        
+        self.protocol("WM_DELETE_WINDOW", self.bezpecne_vypnut)
+
+    def bezpecne_vypnut(self):
+        self.quit()
+        self.destroy()
+        sys.exit(0)
 
     # ==================== SIDEBAR ====================
     def setup_sidebar(self):
@@ -175,7 +213,7 @@ class KnihaJazdApp(ctk.CTk):
     def pridat_vozidlo(self):
         data = self.ziskaj_hodnoty_z_formulara()
         if not data: return
-        conn = sqlite3.connect("kniha_jazd.db"); c = conn.cursor()
+        conn = sqlite3.connect(DB_CESTA); c = conn.cursor()
         c.execute("INSERT INTO vozidla (spz, znacka, typ, druh, phl, vin, vodic, norm_spotreba, tacho, objem_nadrze, stav_nadrze) VALUES (?,?,?,?,?,?,?,?,?,?,?)", data)
         conn.commit(); conn.close(); self.vycisti_formular(); self.nacitaj_vozidla()
 
@@ -185,7 +223,7 @@ class KnihaJazdApp(ctk.CTk):
         v_id = self.tree_auta.item(vybrane[0])['values'][0]
         data = self.ziskaj_hodnoty_z_formulara()
         if not data: return
-        conn = sqlite3.connect("kniha_jazd.db"); c = conn.cursor()
+        conn = sqlite3.connect(DB_CESTA); c = conn.cursor()
         c.execute('''UPDATE vozidla SET spz=?, znacka=?, typ=?, druh=?, phl=?, vin=?, vodic=?, 
                      norm_spotreba=?, tacho=?, objem_nadrze=?, stav_nadrze=? WHERE id=?''', (*data, v_id))
         conn.commit(); conn.close(); self.vycisti_formular(); self.nacitaj_vozidla()
@@ -194,14 +232,14 @@ class KnihaJazdApp(ctk.CTk):
         vybrane = self.tree_auta.selection()
         if not vybrane: return
         v_id = self.tree_auta.item(vybrane[0])['values'][0]
-        conn = sqlite3.connect("kniha_jazd.db"); c = conn.cursor()
+        conn = sqlite3.connect(DB_CESTA); c = conn.cursor()
         c.execute("DELETE FROM vozidla WHERE id=?", (v_id,)); conn.commit(); conn.close(); self.vycisti_formular(); self.nacitaj_vozidla()
 
     def nacitaj_do_formulara(self, event):
         vybrane = self.tree_auta.selection()
         if not vybrane: return
         v_id = self.tree_auta.item(vybrane[0])['values'][0]
-        conn = sqlite3.connect("kniha_jazd.db"); c = conn.cursor()
+        conn = sqlite3.connect(DB_CESTA); c = conn.cursor()
         c.execute("SELECT spz, znacka, typ, druh, phl, vin, vodic, norm_spotreba, tacho, objem_nadrze, stav_nadrze FROM vozidla WHERE id=?", (v_id,))
         row = c.fetchone(); conn.close()
         if row:
@@ -213,7 +251,7 @@ class KnihaJazdApp(ctk.CTk):
 
     def nacitaj_vozidla(self):
         for i in self.tree_auta.get_children(): self.tree_auta.delete(i)
-        conn = sqlite3.connect("kniha_jazd.db"); c = conn.cursor()
+        conn = sqlite3.connect(DB_CESTA); c = conn.cursor()
         c.execute("SELECT id, spz, znacka, typ, druh, phl, vin, vodic, norm_spotreba, tacho, objem_nadrze, stav_nadrze FROM vozidla")
         auta = c.fetchall(); conn.close()
         zoznam_spz = []
@@ -240,7 +278,6 @@ class KnihaJazdApp(ctk.CTk):
         top_cards_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
         top_cards_frame.grid_columnconfigure((0, 1, 2), weight=1)
 
-        # KARTA 1: Vozidlo
         card_car = ctk.CTkFrame(top_cards_frame)
         card_car.grid(row=0, column=0, sticky="nsew", padx=5)
         ctk.CTkLabel(card_car, text="Vozidlo a Stav", font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, columnspan=2, pady=10)
@@ -257,22 +294,20 @@ class KnihaJazdApp(ctk.CTk):
         self.ent_nadrz = ctk.CTkEntry(card_car, width=120)
         self.ent_nadrz.grid(row=3, column=1, padx=10, pady=5, sticky="w")
 
-        # KARTA 2: Trasa a Dátumy
         card_route = ctk.CTkFrame(top_cards_frame)
         card_route.grid(row=0, column=1, sticky="nsew", padx=5)
         ctk.CTkLabel(card_route, text="Parametre Trasy", font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, columnspan=4, pady=10)
         
-        # --- ZÍSKANIE DNEŠNÉHO DÁTUMU ---
         dnes = datetime.date.today().strftime("%d.%m.%Y")
         
         ctk.CTkLabel(card_route, text="Dátum od:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
         self.ent_od = ctk.CTkEntry(card_route, width=100)
-        self.ent_od.insert(0, dnes) # Vloží dnešný dátum
+        self.ent_od.insert(0, dnes)
         self.ent_od.grid(row=1, column=1, pady=5, sticky="w")
         
         ctk.CTkLabel(card_route, text="Dátum do:").grid(row=1, column=2, padx=10, pady=5, sticky="e")
         self.ent_do = ctk.CTkEntry(card_route, width=100)
-        self.ent_do.insert(0, dnes) # Vloží dnešný dátum
+        self.ent_do.insert(0, dnes)
         self.ent_do.grid(row=1, column=3, pady=5, sticky="w")
 
         ctk.CTkLabel(card_route, text="Štart:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
@@ -283,7 +318,6 @@ class KnihaJazdApp(ctk.CTk):
         ctk.CTkLabel(card_route, text="Spolu KM:").grid(row=3, column=0, padx=10, pady=5, sticky="e")
         self.ent_total_km = ctk.CTkEntry(card_route, width=100); self.ent_total_km.insert(0, "130"); self.ent_total_km.grid(row=3, column=1, pady=5, sticky="w")
 
-        # KARTA 3: Tankovanie & Akcie
         card_actions = ctk.CTkFrame(top_cards_frame)
         card_actions.grid(row=0, column=2, sticky="nsew", padx=5)
         ctk.CTkLabel(card_actions, text="Tankovanie & Spustenie", font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, columnspan=2, pady=10)
@@ -300,7 +334,6 @@ class KnihaJazdApp(ctk.CTk):
         self.btn_exp = ctk.CTkButton(card_actions, text="EXPORT EXCEL", command=self.export_csv, fg_color="#28a745", hover_color="#218838")
         self.btn_exp.grid(row=3, column=0, columnspan=2, padx=20, pady=5, sticky="ew")
 
-        # Rozšírená tabuľka
         tree_frame = ctk.CTkFrame(self.frame_generator)
         tree_frame.grid(row=1, column=0, sticky="nsew", pady=10)
         self.tree = ttk.Treeview(tree_frame, columns=("d", "t", "tr", "km", "ts", "tc", "spotreba", "cerp", "cena", "zostatok"), show="headings")
@@ -355,7 +388,6 @@ class KnihaJazdApp(ctk.CTk):
         self.tree.insert("", tk.END, values=hodnoty)
 
     def spustit_vlakno(self):
-        # 1. BEZPEČNOSTNÁ POISTKA: Skontroluje, či je v databáze nejaké auto
         if not hasattr(self, 'auta_data') or len(self.auta_data) == 0:
             return messagebox.showwarning("Prázdna Garáž", "Pred generovaním jázd musíte mať v Garáži pridané aspoň jedno vozidlo!")
             
@@ -491,7 +523,7 @@ class KnihaJazdApp(ctk.CTk):
                 
             curr_d += datetime.timedelta(days=1)
             
-        conn = sqlite3.connect("kniha_jazd.db"); c = conn.cursor()
+        conn = sqlite3.connect(DB_CESTA); c = conn.cursor()
         c.execute("UPDATE vozidla SET tacho=?, stav_nadrze=? WHERE id=?", (tacho, akt_nadrz, auto_data["id"]))
         conn.commit(); conn.close()
         
