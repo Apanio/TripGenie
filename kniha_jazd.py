@@ -551,3 +551,4 @@ class KnihaJazdApp(ctk.CTk):
 if __name__ == "__main__":
     app = KnihaJazdApp()
     app.mainloop()
+    #
