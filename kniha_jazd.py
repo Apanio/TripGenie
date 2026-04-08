@@ -24,7 +24,6 @@ if not os.path.exists(APP_DIR):
 # ==========================================
 if sys.platform == "darwin":
     log_file = os.path.join(APP_DIR, "crash_log.txt")
-    # Zapíšeme výstup aj chyby do súboru
     sys.stdout = open(log_file, "a")
     sys.stderr = open(log_file, "a")
 
@@ -42,7 +41,6 @@ import math
 import threading
 import webbrowser
 
-# --- NASTAVENIE TÉMY ---
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
