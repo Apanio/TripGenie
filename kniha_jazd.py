@@ -8,7 +8,7 @@ import datetime
 import csv
 import math
 import threading
-import webbrowser  # Knižnica pre otváranie webových odkazov
+import webbrowser  
 
 # --- NASTAVENIE TÉMY ---
 ctk.set_appearance_mode("System")  # Modes: "System" (standard), "Dark", "Light"
@@ -73,12 +73,11 @@ class KnihaJazdApp(ctk.CTk):
         self.nacitaj_vozidla()
         self.zobraz_frame("generator")
 
-        # --- KLIKATEĽNÝ ODKAZ APANIO V PRAVOM DOLNOM ROHU ---
         self.link_apanio = ctk.CTkLabel(
             self, 
             text="Apanio", 
             font=ctk.CTkFont(underline=True, weight="bold"), 
-            text_color=("#1a73e8", "#5b9dd9"), # Farba prispôsobená pre svetlý/tmavý režim
+            text_color=("#1a73e8", "#5b9dd9"), 
             cursor="hand2"
         )
         self.link_apanio.place(relx=0.99, rely=0.99, anchor="se", x=-10, y=- -5)
@@ -267,12 +266,12 @@ class KnihaJazdApp(ctk.CTk):
         
         ctk.CTkLabel(card_route, text="Dátum od:").grid(row=1, column=0, padx=10, pady=5, sticky="e")
         self.ent_od = ctk.CTkEntry(card_route, width=100)
-        self.ent_od.insert(0, dnes) # Vloží dnešný dátum
+        self.ent_od.insert(0, dnes) 
         self.ent_od.grid(row=1, column=1, pady=5, sticky="w")
         
         ctk.CTkLabel(card_route, text="Dátum do:").grid(row=1, column=2, padx=10, pady=5, sticky="e")
         self.ent_do = ctk.CTkEntry(card_route, width=100)
-        self.ent_do.insert(0, dnes) # Vloží dnešný dátum
+        self.ent_do.insert(0, dnes) 
         self.ent_do.grid(row=1, column=3, pady=5, sticky="w")
 
         ctk.CTkLabel(card_route, text="Štart:").grid(row=2, column=0, padx=10, pady=5, sticky="e")
