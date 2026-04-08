@@ -37,6 +37,5 @@ Pred generovaním jázd musíš mať v systéme aspoň jedno vozidlo.
 ### 📂 Kde sa ukladajú dáta?
 Aplikácia funguje plne offline (s výnimkou sťahovania GPS súradníc). Databáza kniha_jazd.db sa z bezpečnostných dôvodov na macOS ukladá do skrytého priečinka ~/.tripgenie, aby sa predišlo konfliktom s prístupovými právami. Pri Windows sa databáza ukladá na miesto odkiaľ sa spúšťa .exe
 
-### 👨‍💻 Autor
-Vytvoril Apanio.
-Ak máš nápady na vylepšenie, neváhaj vytvoriť Pull Request alebo otvoriť Issue!
+
+**Ak máš nápady na vylepšenie, neváhaj vytvoriť Pull Request alebo otvoriť Issue!**
